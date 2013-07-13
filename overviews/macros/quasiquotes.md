@@ -6,13 +6,16 @@ disqus: true
 
 partof: macros
 num: 4
-outof: 4
+outof: 7
+languages: [ja]
 ---
 <a href="/overviews/macros/paradise.html"><span class="label important" style="float: right;">MACRO PARADISE</span></a>
 
-**Eugene Burmako**
+**Denys Shabalin, Eugene Burmako**
 
 Quasiquotes are a pre-release feature included in so-called macro paradise, an experimental branch in the official Scala repository. Follow the instructions at the ["Macro Paradise"](/overviews/macros/paradise.html) page to download and use our nightly builds.
+
+As of late, quasiquotes are also available to production users of Scala 2.10.x <span class="label success">NEW</span>. Follow the instructions at <a href="/overviews/macros/paradise.html#macro_paradise_for_210x">the macro paradise page</a> for more information.
 
 ## Intuition
 
@@ -49,7 +52,7 @@ However even seasoned macro writers will admit that this code, even though it's 
 
     val newdefs = body collect {
       case q"def $name[..$tparams](...$vparamss): $tpt = $body" =>
-        val tpt1 = if (tpt.isEmpty) tpt else tq"Future[$tresult]"
+        val tpt1 = if (tpt.isEmpty) tpt else tq"Future[$tpt]"
         val name1 = newTermName("async" + name.capitalize)
         q"def $name1[..$tparams](...$vparamss): $tpt1 = future { $body }"
     }

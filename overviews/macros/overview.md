@@ -6,7 +6,8 @@ disqus: true
 
 partof: macros
 num: 1
-outof: 4
+outof: 7
+languages: [ja]
 ---
 <span class="label warning" style="float: right;">EXPERIMENTAL</span>
 
@@ -73,7 +74,7 @@ or with `-language:experimental.macros` (providing a compiler switch) on per-com
 
 ### Generic macros
 
-Macro definitions and macro implementations may both be generic. If a macro implementation has type parameters, actual type arguments must be given explicitly in the macro definition’s body. Type parameters in an implementation may come with `TypeTag` context bounds. In that case the corresponding type tags describing the actual type arguments instantiated at the application site will be passed along when the macro is expanded.
+Macro definitions and macro implementations may both be generic. If a macro implementation has type parameters, actual type arguments must be given explicitly in the macro definition’s body. Type parameters in an implementation may come with `WeakTypeTag` context bounds. In that case the corresponding type tags describing the actual type arguments instantiated at the application site will be passed along when the macro is expanded.
 
 The following code snippet declares a macro definition `Queryable.map` that references a macro implementation `QImpl.map`:
 
@@ -82,7 +83,7 @@ The following code snippet declares a macro definition `Queryable.map` that refe
     }
 
     object QImpl {
-     def map[T: c.TypeTag, U: c.TypeTag]
+     def map[T: c.WeakTypeTag, U: c.WeakTypeTag]
             (c: Context)
             (p: c.Expr[T => U]): c.Expr[Queryable[U]] = ...
     }
@@ -94,7 +95,7 @@ Now consider a value `q` of type `Queryable[String]` and a macro call
 The call is expanded to the following reflective macro invocation
 
     QImpl.map(c)(<[ s => s.length ]>)
-       (implicitly[TypeTag[String]], implicitly[TypeTag[Int]])
+       (implicitly[WeakTypeTag[String]], implicitly[WeakTypeTag[Int]])
 
 ## A complete example
 
@@ -123,20 +124,20 @@ It's customary to import `c.universe._`, because it includes a lot of routinely 
 First of all, the macro needs to parse the provided format string.
 Macros run during the compile-time, so they operate on trees, not on values.
 This means that the format parameter of the `printf` macro will be a compile-time literal, not an object of type `java.lang.String`.
-This also means that the code below won't work for `printf(get_format(), ...)`, because in that case `format` won't be a string literal, but rather an AST that represents addition of two string literals. Adjusting the macro to work for arbitrary expressions is left as an exercise for the reader.
+This also means that the code below won't work for `printf(get_format(), ...)`, because in that case `format` won't be a string literal, but rather an AST that represents a function application.
 
     val Literal(Constant(s_format: String)) = format.tree
 
 Typical macros (and this macro is not an exception) need to create ASTs (abstract syntax trees) which represent Scala code.
 To learn more about generation of Scala code, take a look at [the overview of reflection](http://docs.scala-lang.org/overviews/reflection/overview.html). Along with creating ASTs the code provided below also manipulates types.
-Note how we get a hold of Scala types that correspond to `Int and String`.
+Note how we get a hold of Scala types that correspond to `Int` and `String`.
 Reflection overview linked above covers type manipulations in detail.
 The final step of code generation combines all the generated code into a `Block`.
 Note the call to `reify`, which provides a shortcut for creating ASTs.
 
     val evals = ListBuffer[ValDef]()
     def precompute(value: Tree, tpe: Type): Ident = {
-      val freshName = newTermName(c.freshName("eval$"))
+      val freshName = newTermName(c.fresh("eval$"))
       evals += ValDef(Modifiers(), freshName, TypeTree(tpe), value)
       Ident(freshName)
     }
@@ -167,7 +168,7 @@ To follow the example, create an empty directory and copy the code to a new file
 
         val evals = ListBuffer[ValDef]()
         def precompute(value: Tree, tpe: Type): Ident = {
-          val freshName = newTermName(c.freshName("eval$"))
+          val freshName = newTermName(c.fresh("eval$"))
           evals += ValDef(Modifiers(), freshName, TypeTree(tpe), value)
           Ident(freshName)
         }
@@ -214,7 +215,9 @@ This scenario is covered in the previous section. In short, compile macros and t
 
 ### Using macros with Maven or SBT
 
-The walkthrough in this guide uses the simplest possible command-line compilation, but macros also work with build tools such as Maven and SBT. The separate compilation restriction requires that macros must be placed in a separate SBT project or Maven submodule, but other than that everything should work smoothly. Check out [https://github.com/scalamacros/sbt-example](https://github.com/scalamacros/sbt-example) or [https://github.com/scalamacros/maven-example](https://github.com/scalamacros/maven-example) for additional information.
+The walkthrough in this guide uses the simplest possible command-line compilation, but macros also work with build tools such as Maven and SBT. Check out [https://github.com/scalamacros/sbt-example](https://github.com/scalamacros/sbt-example) or [https://github.com/scalamacros/maven-example](https://github.com/scalamacros/maven-example) for end-to-end examples, but in a nutshell you only need to know two things:
+* Macros needs scala-reflect.jar in library dependencies.
+* The separate compilation restriction requires macros to be placed in a separate project.
 
 ### Using macros with Scala IDE or Intellij IDEA
 
@@ -222,7 +225,7 @@ Both in Scala IDE and in Intellij IDEA macros are known to work fine, given they
 
 ### Debugging macros
 
-Debugging macros (i.e. the logic that drives macro expansion) is fairly straightforward. Since macros are expanded within the compiler, all that you need is to run the compiler under a debugger. To do that, you need to: 1) add all (!) the libraries from the lib directory in your Scala home (which include such jar files as `scala-library.jar`, `scala-reflect.jar`, `scala-compiler.jar` and `forkjoin.jar`) to the classpath of your debug configuration, 2) set `scala.tools.nsc.Main` as an entry point, 3) set command-line arguments for the compiler as `-cp <path to the classes of your macro> Test.scala`, where `Test.scala` stands for a test file containing macro invocations to be expanded. After all that is done, you should be able to put a breakpoint inside your macro implementation and launch the debugger.
+Debugging macros (i.e. the logic that drives macro expansion) is fairly straightforward. Since macros are expanded within the compiler, all that you need is to run the compiler under a debugger. To do that, you need to: 1) add all (!) the libraries from the lib directory in your Scala home (which include such jar files as `scala-library.jar`, `scala-reflect.jar` and `scala-compiler.jar`) to the classpath of your debug configuration, 2) set `scala.tools.nsc.Main` as an entry point, 3) provide the `-Dscala.usejavacp=true` system property for the JVM (very important!), 4) set command-line arguments for the compiler as `-cp <path to the classes of your macro> Test.scala`, where `Test.scala` stands for a test file containing macro invocations to be expanded. After all that is done, you should be able to put a breakpoint inside your macro implementation and launch the debugger.
 
 What really requires special support in tools is debugging the results of macro expansion (i.e. the code that is generated by a macro). Since this code is never written out manually, you cannot set breakpoints there, and you won't be able to step through it. Scala IDE and Intellij IDEA teams will probably add support for this in their debuggers at some point, but for now the only way to debug macro expansions are diagnostic prints: `-Ymacro-debug-lite` (as described below), which prints out the code emitted by macros, and println to trace the execution of the generated code.
 
@@ -287,7 +290,7 @@ As the printout shows, nothing dramatic happens. Compiler guards itself against 
 
 ### Reporting warnings and errors
 
-The canonical way to interact with the use is through the methods of `scala.reflect.macros.FrontEnds`.
+The canonical way to interact with the user is through the methods of `scala.reflect.macros.FrontEnds`.
 `c.error` reports a compilation error, `c.info` issues a warning, `c.abort` reports an error and terminates
 execution of a macro.
 

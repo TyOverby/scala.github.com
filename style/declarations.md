@@ -22,7 +22,7 @@ put each constructor argument on its own line, indented **four** spaces:
         astrologicalSign: String,
         shoeSize: Int,
         favoriteColor: java.awt.Color) {
-      def firstMethod = ...
+      def firstMethod: Foo = ...
     }
 
 If a class/object/trait extends anything, the same general rule applies,
@@ -56,9 +56,9 @@ chars, one line) definitions:
       val bar = 42
       val baz = "Daniel"
 
-      def doSomething() { ... }
+      def doSomething(): Unit = { ... }
 
-      def add(x: Int, y: Int) = x + y
+      def add(x: Int, y: Int): Int = x + y
     }
 
 Fields should *precede* methods in a scope. The only exception is if the
@@ -76,18 +76,32 @@ Methods should be declared according to the following pattern:
 
     def foo(bar: Baz): Bin = expr
 
-The only exceptions to this rule are methods which return `Unit`. Such
-methods should use Scala's syntactic sugar to avoid accidentally
-confusing return types:
-
-    def foo(bar: Baz) {       // return type is Unit
-      expr
-    }
-
 Methods with default parameter values should be declared in an analogous
 fashion, with a space on either side of the equals sign:
 
-    def foo(x: Int = 6, y: Int = 7) = expr
+    def foo(x: Int = 6, y: Int = 7): Int = x + y
+
+You should specify a return type for all public members.
+Consider it documentation checked by the compiler.
+It also helps in preserving binary compatibility in the face of changing type inference (changes to the method implementation may propagate to the return type if it is inferred).
+
+Local methods or private methods may omit their return type:
+
+    private def foo(x: Int = 6, y: Int = 7) = x + y
+
+#### Procedure Syntax
+
+Avoid the procedure syntax, as it tends to be confusing for very little gain in brevity.
+
+    // don't do this
+    def printBar(bar: Baz) {
+      println(bar)
+    }
+
+    // write this instead
+    def printBar(bar: Bar): Unit = {
+      println(bar)
+    }
 
 #### Modifiers
 
@@ -113,14 +127,14 @@ applicable):
 When a method body comprises a single expression which is less than 30
 (or so) characters, it should be given on a single line with the method:
 
-    def add(a: Int, b: Int) = a + b
+    def add(a: Int, b: Int): Int = a + b
 
 When the method body is a single expression *longer* than 30 (or so)
 characters but still shorter than 70 (or so) characters, it should be
 given on the following line, indented two spaces:
 
-    def sum(ls: List[String]) =
-      (ls map { _.toInt }).foldLeft(0) { _ + _ }
+    def sum(ls: List[String]): Int =
+      ls.map(_.toInt).foldLeft(0)(_ + _)
 
 The distinction between these two cases is somewhat artificial.
 Generally speaking, you should choose whichever style is more readable
@@ -133,9 +147,9 @@ When the body of a method cannot be concisely expressed in a single line
 or is of a non-functional nature (some mutable state, local or
 otherwise), the body must be enclosed in braces:
 
-    def sum(ls: List[String]) = {
-      val ints = ls map { _.toInt }
-      ints.foldLeft(0) { _ + _ }
+    def sum(ls: List[String]): Int = {
+      val ints = ls map (_.toInt)
+      ints.foldLeft(0)(_ + _)
     }
 
 Methods which contain a single `match` expression should be declared in
@@ -171,7 +185,7 @@ There are three main reasons you should do this:
     Multiple parameter lists allow you to create your own "control
     structures":
 
-        def unless(exp: Boolean)(code: => Unit) = if (!exp) code
+        def unless(exp: Boolean)(code: => Unit): Unit = if (!exp) code
         unless(x < 5) { 
           println("x was not less than five")
         }
@@ -204,7 +218,7 @@ put them all on one line, put one each per line):
 
     protected def forResource(resourceInfo: Any)
                              (f: (JsonNode) => Any) 
-                             (implicit urlCreator: URLCreator, configurer: OAuthConfiguration) = {
+                             (implicit urlCreator: URLCreator, configurer: OAuthConfiguration): Any = {
       ...
     }
 
@@ -219,12 +233,12 @@ For example, this is the `foldl` function in SML:
 
 In Scala, the preferred style is the exact inverse:
 
-    def foldLeft[A, B](ls: List[A])(init: B)(f: (B, A) => B) = ...
+    def foldLeft[A, B](ls: List[A])(init: B)(f: (B, A) => B): B = ...
 
 By placing the function parameter *last*, we have enabled invocation
 syntax like the following:
 
-    foldLeft(List(1, 2, 3, 4))(0) { _ + _ }
+    foldLeft(List(1, 2, 3, 4))(0)(_ + _)
 
 The function value in this invocation is not wrapped in parentheses; it
 is syntactically quite disconnected from the function itself
@@ -246,10 +260,10 @@ Scala provides a number of different syntactic options for declaring
 function values. For example, the following declarations are exactly
 equivalent:
 
-1.  `val f1 = { (a: Int, b: Int) => a + b }`
+1.  `val f1 = ((a: Int, b: Int) => a + b)`
 2.  `val f2 = (a: Int, b: Int) => a + b`
 3.  `val f3 = (_: Int) + (_: Int)`
-4.  `val f4: (Int, Int) => Int = { _ + _ }`
+4.  `val f4: (Int, Int) => Int = (_ + _)`
 
 Of these styles, (1) and (4) are to be preferred at all times. (2)
 appears shorter in this example, but whenever the function value spans
@@ -260,32 +274,30 @@ function value.
 
 When styles (1) and (4) are used exclusively, it becomes very easy to
 distinguish places in the source code where function values are used.
-Both styles make use of curly braces (`{}`), allowing those characters
-to be a visual cue that a function value may be involved at some level.
-
+Both styles make use of parentheses, since they look clean on a single line.  
+ 
 ### Spacing
 
-You will notice that both (1) and (4) insert spaces after the opening
-brace and before the closing brace. This extra spacing provides a bit of
-"breathing room" for the contents of the function and makes it easier to
-distinguish from the surrounding code. There are *no* cases when this
-spacing should be omitted.
+There should be no space between parentheses and the code they contain.  
+Curly braces should be separated from the code within them by a one-space gap, 
+to give the visually busy braces "breathing room".
 
 ### Multi-Expression Functions
 
 Most function values are less trivial than the examples given above.
 Many contain more than one expression. In such cases, it is often more
 readable to split the function value across multiple lines. When this
-happens, only style (1) should be used. Style (4) becomes extremely
-difficult to follow when enclosed in large amounts of code. The
-declaration itself should loosely follow the declaration style for
+happens, only style (1) should be used, substituting braces for parentheses. 
+Style (4) becomes extremely difficult to follow when enclosed in large amounts 
+of code. The declaration itself should loosely follow the declaration style for
 methods, with the opening brace on the same line as the assignment or
 invocation, while the closing brace is on its own line immediately
 following the last line of the function. Parameters should be on the
 same line as the opening brace, as should the "arrow" (`=>`):
 
     val f1 = { (a: Int, b: Int) =>
-      a + b
+      val sum = a + b
+      sum
     }
 
 As noted earlier, function values should leverage type inference
